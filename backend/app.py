@@ -1,29 +1,44 @@
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, send_file
 from flask_cors import CORS
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
 from nltk.corpus import stopwords
+import nltk
 import re
 from reportlab.lib.pagesizes import A4
 from reportlab.pdfgen import canvas
-from flask import send_file
 import io
+
+# Download stopwords automatically (important for Render)
+nltk.download('stopwords')
 
 app = Flask(__name__)
 CORS(app)
 
 STOPWORDS = set(stopwords.words('english'))
 
+# Home route (for testing)
+@app.route('/')
+def home():
+    return jsonify({
+        'message': 'Resume Analyzer backend is running'
+    })
+
+# Clean text
 def clean_text(text):
     text = text.lower()
-    text = re.sub(r'[^a-z0-9\s]', ' ', text)
+    text = re.sub(r'[^a-z0-9\\s]', ' ', text)
 
     words = text.split()
     words = [w for w in words if w not in STOPWORDS and len(w) > 2]
 
     return ' '.join(words)
 
+# Extract keywords
 def get_keywords(text, top_n=30):
+    if not text.strip():
+        return []
+
     vectorizer = TfidfVectorizer(
         ngram_range=(1, 2),
         max_features=top_n
@@ -33,10 +48,10 @@ def get_keywords(text, top_n=30):
 
     return list(vectorizer.vocabulary_.keys())
 
+# Analyze route
 @app.route('/analyze', methods=['POST'])
 def analyze():
-
-    data = request.json
+    data = request.get_json()
 
     jd = data.get('jd', '')
     resume = data.get('resume', '')
@@ -65,15 +80,8 @@ def analyze():
 
     jd_keywords = get_keywords(clean_jd)
 
-    matched = [
-        k for k in jd_keywords
-        if k in clean_resume
-    ]
-
-    missing = [
-        k for k in jd_keywords
-        if k not in clean_resume
-    ]
+    matched = [k for k in jd_keywords if k in clean_resume]
+    missing = [k for k in jd_keywords if k not in clean_resume]
 
     return jsonify({
         'score': score,
@@ -81,37 +89,28 @@ def analyze():
         'missing': missing,
         'total': len(jd_keywords)
     })
+
+# PDF report route
 @app.route('/report', methods=['POST'])
 def generate_report():
-
-    data = request.json
+    data = request.get_json()
 
     buffer = io.BytesIO()
 
     c = canvas.Canvas(buffer, pagesize=A4)
 
-    c.setFont("Helvetica-Bold", 20)
-    c.drawString(50, 800, "Resume Keyword Analysis Report")
+    c.setFont('Helvetica-Bold', 20)
+    c.drawString(50, 800, 'Resume Keyword Analysis Report')
 
-    c.setFont("Helvetica", 14)
+    c.setFont('Helvetica', 14)
 
-    c.drawString(
-        50,
-        760,
-        f"Match Score: {data['score']}%"
-    )
+    c.drawString(50, 760, f"Match Score: {data.get('score', 0)}%")
 
-    c.drawString(
-        50,
-        730,
-        f"Matched Keywords: {', '.join(data['matched'][:10])}"
-    )
+    matched = ', '.join(data.get('matched', [])[:10])
+    missing = ', '.join(data.get('missing', [])[:10])
 
-    c.drawString(
-        50,
-        700,
-        f"Missing Keywords: {', '.join(data['missing'][:10])}"
-    )
+    c.drawString(50, 730, f"Matched Keywords: {matched}")
+    c.drawString(50, 700, f"Missing Keywords: {missing}")
 
     c.save()
 
@@ -123,5 +122,7 @@ def generate_report():
         download_name='report.pdf',
         mimetype='application/pdf'
     )
+
+# Run locally
 if __name__ == '__main__':
-    app.run(debug=True)
+    app.run(host='0.0.0.0', port=5000, debug=True)
