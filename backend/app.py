@@ -8,6 +8,7 @@ import re
 from reportlab.lib.pagesizes import A4
 from reportlab.pdfgen import canvas
 import io
+import os
 
 # Download stopwords automatically (important for Render)
 nltk.download('stopwords')
@@ -27,7 +28,7 @@ def home():
 # Clean text
 def clean_text(text):
     text = text.lower()
-    text = re.sub(r'[^a-z0-9\\s]', ' ', text)
+    text = re.sub(r'[^a-z0-9\s]', ' ', text)
 
     words = text.split()
     words = [w for w in words if w not in STOPWORDS and len(w) > 2]
@@ -125,4 +126,8 @@ def generate_report():
 
 # Run locally
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=5000, debug=True)
+    app.run(
+        host='0.0.0.0',
+        port=int(os.environ.get('PORT', 5000)),
+        debug=True
+    )
