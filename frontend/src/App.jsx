@@ -2,94 +2,82 @@ import { useState } from 'react'
 import axios from 'axios'
 import './App.css'
 
-function App() {
+// Your deployed Render backend URL
+const API = 'https://resume-analyzer-x9q1.onrender.com'
 
+function App() {
   const [jd, setJd] = useState('')
   const [resume, setResume] = useState('')
-
   const [result, setResult] = useState(null)
-
   const [loading, setLoading] = useState(false)
 
   const analyze = async () => {
-
     if (!jd || !resume) {
       alert('Please enter both JD and Resume')
       return
     }
-    
 
     try {
-
       setLoading(true)
 
-      const response = await axios.post(
-        'http://localhost:5000/analyze',
-        {
-          jd: jd,
-          resume: resume
-        }
-      )
+      const response = await axios.post(`${API}/analyze`, {
+        jd: jd,
+        resume: resume
+      })
 
       setResult(response.data)
 
     } catch (error) {
-
       console.log(error)
-
       alert('Error connecting to backend')
 
     } finally {
-
       setLoading(false)
-
     }
   }
-const downloadReport = async () => {
 
-  try {
+  const downloadReport = async () => {
+    if (!result) {
+      alert('Please analyze the resume first')
+      return
+    }
 
-    const response = await axios.post(
-      'http://localhost:5000/report',
-      result,
-      {
-        responseType: 'blob'
-      }
-    )
+    try {
+      const response = await axios.post(
+        `${API}/report`,
+        result,
+        {
+          responseType: 'blob'
+        }
+      )
 
-    const url = window.URL.createObjectURL(
-      new Blob([response.data])
-    )
+      const url = window.URL.createObjectURL(
+        new Blob([response.data], {
+          type: 'application/pdf'
+        })
+      )
 
-    const link = document.createElement('a')
+      const link = document.createElement('a')
+      link.href = url
+      link.setAttribute('download', 'resume-analysis-report.pdf')
 
-    link.href = url
+      document.body.appendChild(link)
+      link.click()
 
-    link.setAttribute(
-      'download',
-      'report.pdf'
-    )
+      link.remove()
+      window.URL.revokeObjectURL(url)
 
-    document.body.appendChild(link)
-
-    link.click()
-
-  } catch (error) {
-
-    console.log(error)
-
-    alert('Failed to download report')
-
+    } catch (error) {
+      console.log(error)
+      alert('Failed to download report')
+    }
   }
-}
+
   return (
-
     <div className="container">
-
       <h1>ATS Resume Analyzer</h1>
 
       <div className="input-section">
-
         <textarea
           placeholder="Paste Job Description Here..."
           value={jd}
@@ -101,7 +89,6 @@ const downloadReport = async () => {
           value={resume}
           onChange={(e) => setResume(e.target.value)}
         />
-
       </div>
 
       <button onClick={analyze}>
@@ -109,16 +96,15 @@ const downloadReport = async () => {
       </button>
 
       {result && (
-
         <div className="result-box">
-
           <h2>Match Score: {result.score}%</h2>
-          <button onClick={downloadReport}> Download PDF Report </button>
+
+          <button onClick={downloadReport}>
+            Download PDF Report
+          </button>
 
           <div className="keywords">
-
             <div>
-
               <h3>✅ Matched Keywords</h3>
 
               <ul>
@@ -126,11 +112,9 @@ const downloadReport = async () => {
                   <li key={index}>{item}</li>
                 ))}
               </ul>
-
             </div>
 
             <div>
-
               <h3>❌ Missing Keywords</h3>
 
               <ul>
@@ -138,15 +122,10 @@ const downloadReport = async () => {
                   <li key={index}>{item}</li>
                 ))}
               </ul>
-
             </div>
-
           </div>
-
         </div>
-
       )}
-
     </div>
   )
 }
